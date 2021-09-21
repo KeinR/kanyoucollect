@@ -1,0 +1,238 @@
+
+
+
+User does not actually know where their ships are exactly.
+They are fed "reports" that each fleet sends in, which includes encounters
+and whatnot, which happen as often as the user wants.
+Radio can be intercepted, but is cheaper and faster and reliable.
+Plane cannot be intercepted, but can be ex. shot down or crash or whatever.
+
+
+
+Each user has a group of ships.
+These include destroyers, cruisers, battleships, carriers, and subs.
+Destroyers are +subs +speed +evasion +torpedoes (VERY speedy)
+cruisers are beefy subs, with also +AA and less evasion.
+battleships have no torpedos, but high firepower and range. Very low AA.
+Carriers have planes, and thus high ACV and range and LOS. But, no firepower and low armor.
+Subs have very low armor and only fire a few torpedoes, but are invulnerable to battleships and carriers (ASSASINS!)
+Transports carry troops for land invasions. They have the speed of cruisers, but the armor of destroyers and no weapons.
+
+Night battles:
+Destroyes and cruisers get damage buffs, range is reduced so battleships are actually debuffed.
+Carriers cannot launch planes, so they're sitting ducks.
+Subs are invulnerable.
+Only thing is, LOS is low, so it's hard to start a night battle unless one has already been going on.
+
+Planes have high range, and deplate due to AA or enemy ACV.
+There is a percentage chance of intercepting communications the closer you are to an enemy fleet.
+There is also a small chance that you break the enemy codes. Also, a high chance of finding them if you capture an enemy ship.
+
+Ships have fuel and ammo requirements, and if depleted, they are as good as dead.
+Perhaps later have a tanker fleet that can restore fuel, but no. Don't do that.
+
+Can only capture if enemy fleet surrenders.
+
+
+Everything happens in real time, so the time that it takes you to fill out orders matters.
+Orders are given in a very english like way, ex:
+"Do not engage"
+"If enemy spotted attack"
+"Encrypt communications"
+"Full speed"
+"Half speed"
+"Radio silence for five minutes"
+"Capture port Guam"
+"Bombard port Guam"
+"Send Nagato and Saratoga to fleet 4"
+"Create new fleet 8 with Mutsuki and Fubuki"
+"Fleet 8:...[new orders for that fleet since they also receive the communication]"
+
+Command flow:
+
+- Get ships
+- Organize into logical fleets so that they're easier to command
+	- Each fleet can have formations that do different things, like
+	protecting cruisers, or focusing on AA
+- Give fleet orders
+	- Go to location
+	- Speed; at a certain point, higher speeds lead to lower fuel efficiency.
+	- Return to port when needed; if the commander forgets, the fleet will automatically return to
+	the closest port if low on fuel. They'll send a report before doing so.
+	- Do not engage; avoid fighting with the enemy at all costs.
+	- Radio silence; do not send reports back for a certain time period
+	- Encrypt; only send encrypted messages. This will result in the enemy needing to break the codes first, but
+	messages will take longer to transmit, and have a higher chance of failure on receipt (because they're encrypted,
+	one error results in the whole thing needing to be re-sent, unless it's a simple ceaser cipher, in which case... Why???)
+	- Formation; will determine combat ability, etc. For example, spreading out
+	- Sending out patrol planes; will make fleet more visible, but in turn increase LOS
+	- Lights out; Hunker down during nighttime to avoid being spotted. Reduces speed significantly.
+	- Engage on sight; Do not ask before pursuing an engagement.
+	- Capture; capture port
+		- Loose crew when capturing port
+	- Bombard; bombard port
+	- (repair is done automatically if at a port)
+- Fleet responds with status
+	- Enemy spotted (with coordinates)
+		- Attack
+		- Retreat
+		- Steady (default)
+	- Low on fuel
+		- Return to nearest port
+	- Current coordinates
+	- Direction, speed, ships in fleet, damage report, crew report
+	- Supply report (influences morale)
+	- Morale (lower values and smaller fleet sizes increase chance of desertion or surrender)
+
+
+
+
+
+
+
+Tech needed:
+- A string processor for commands
+- Server / client model
+	- Server sends out reports to client
+	- Client sends orders to server
+		- Each order has a target fleet
+	- All data that can be is stored on the server, to prevent cheating.... Lmao useless.
+		- Well also, it will increase data encapsulation, since they're all sharing the same state.
+	- 
+- Sockets for real time communication between client and server ( this is a multiplayer after all )
+- One client decides to host server... Well of course, never mind. Have the server be a separate application.
+- 
+
+
+
+Client modules:
+- Networking
+    - Sending and recieving data from the server
+    + int connect(state, const char *ip, const char *port)
+        - connect to a server
+        - returns error
+            - no error
+            - failed to connect (connection)
+            - invalid IP
+            - invalid port (could not bind, in use, etc...)
+    + int send(state, void *data, int dataSize)
+        - Send data to connected server
+        - Data should be in host byte order
+        - Will send ALL the data, even if not everything is sent in
+        one go
+        - return error
+            - disconnected/no connection/etc.
+    + int receive(state, void *buffer, int bufferSize)
+        - Receive data from server
+        - Data is in host byte order
+        - return error = 0, otherwise number of bytes written
+            - No connection/disconnected
+    + int tranDispatch(state)
+        - Every call, calls receive. If got data, then
+        parses header. Depending on the header, calls a callback (nethandle),
+        which is of the form void nethande_XXXX(state, void *data, int dataLen):
+            - nethandle_report()
+- User input
+    - Obtaining the orders from the user in a timely fashion
+    - send() is used to send order data
+    - Send orders automatically inside certain folders 
+        - The name of the file is parsed as a unix timestamp for when to send the order,
+        thatis, if it is recognized as a integer
+        - Does not send if it is open inside of another program
+        - Moves to "sent" folder after sending
+    + int getInput(const char *dir, const char *extRestrict, char *output, int outputLen)
+        - Get the next file (THE FULL ABSOLUTE PATH) in dir that is ready to send (including based on timestamp)
+        - Is not recursive
+        - Returns NULL if there's nothing there.
+        - Will ignore files not ending in `extRestrict`. Can set to NULL
+        to disable this.
+            - Note that the 
+        - Return error
+            - Buffer overflow; the absolute path overflows the given buffer
+    + int getOrderReady(const char *filepath, int extRestrictLen)
+        - Get if the order is ready. In this case, that means if the timestamp (which isn't
+        required) has passed. Takes a substring not including the end extRestrict length, extRestrictLen.
+        It doesn't need the string itself for obvious reasons.
+    + int makeOrderHeader(state, const char *path, void *buffer, int bufferSize)
+        - Write an order header based on file attributes and state information (it's not much...)
+    + int readFile(const char *path, void *buffer, int bufferSize)
+        - Read a file entirely into the given buffer
+        - Reurn error
+            - Overflow; file larger than buffer
+- User output
+    + void nethandle_report(state, void *data, int dataLen)
+        - Called when a report comes in
+        - Calls sendReport
+    + int sendReport(const char *dir, int maxSize, header, void *data, int dataLen)
+        - Generic, writes a report (data) based on the header to a file in `dir`
+        - Return error
+            - I/O error (file something)
+            - Bad header
+        - Checks the total size of files in directory. Deletes older files if the bytes
+        exceeds `maxSize` to prevent destructive client DDoS
+
+Server modules:
+- Networking
+    - Sending and receiving data from the client
+    + int init(state, const char *port, int maxConnections)
+        - Initialize the networking, start listening on port
+        - will spawn a thread and start acceping connections, however will
+        stay below maxConnections
+    + int listen(state)
+        - Start acceding connections
+    + int ignore(state)
+        - Ignore new connections
+    + int accept(state, int *id)
+        - Accepts a new connection
+        - id -> the internal id referencing the connection
+    + int alive(state, int id)
+        - Checks if the connection is still alive
+    + int disconnect(state, int id)
+        - Disconnect the given id
+    + int send(state, int id, const void *data, int dataSize)
+        - Send data to connection id
+        - Return error
+            - Invalid connection
+            - Disconnected
+
+- Language processing
+    - Processing orders sent in by players
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

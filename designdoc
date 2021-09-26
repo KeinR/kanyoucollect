@@ -72,6 +72,7 @@ Command flow:
 		- Loose crew when capturing port
 	- Bombard; bombard port
 	- (repair is done automatically if at a port)
+        - Report on surroundings
 - Fleet responds with status
 	- Enemy spotted (with coordinates)
 		- Attack
@@ -105,7 +106,16 @@ Tech needed:
 
 
 
+
+- NOTE ON NETWORKING: Will need to have the filesize in the header
+in case the data must be sent in multible goes, so the client/server knows
+to wait for more.
+
 Client modules:
+- PURPOSE
+    - To interface with the server.
+    - The client does not actually do any real computation,
+    that all happens server side
 - Networking
     - Sending and recieving data from the server
     + int connect(state, const char *ip, const char *port)
@@ -130,8 +140,8 @@ Client modules:
     + int tranDispatch(state)
         - Every call, calls receive. If got data, then
         parses header. Depending on the header, calls a callback (nethandle),
-        which is of the form void nethande_XXXX(state, void *data, int dataLen):
-            - nethandle_report()
+        which is of the form void net_hande_XXXX(state, void *data, int dataLen):
+            - net_handle_report()
 - User input
     - Obtaining the orders from the user in a timely fashion
     - send() is used to send order data
@@ -159,8 +169,9 @@ Client modules:
         - Read a file entirely into the given buffer
         - Reurn error
             - Overflow; file larger than buffer
+
 - User output
-    + void nethandle_report(state, void *data, int dataLen)
+    + void net_handle_report(state, void *data, int dataLen)
         - Called when a report comes in
         - Calls sendReport
     + int sendReport(const char *dir, int maxSize, header, void *data, int dataLen)
@@ -170,6 +181,12 @@ Client modules:
             - Bad header
         - Checks the total size of files in directory. Deletes older files if the bytes
         exceeds `maxSize` to prevent destructive client DDoS
+
+- Map
+    - Queried from the server whenever it feels like
+    - Special header for the request, of course
+    - Writes the map in ASCII and image form for the user to view
+    - Perhaps there are modes where there is no map
 
 Server modules:
 - Networking
@@ -195,11 +212,201 @@ Server modules:
             - Invalid connection
             - Disconnected
 
+
+- Map generation
+    - A pretty map is generated and written using stb_image that shows
+    coordinates and where stuff is.
+    - There is an ASCII version, perhaps less pretty
+    - The client is responsible for rendering the image version, server
+    provides raw map data
+    - Generate a few blobs for islands, 3-5. Of those blobs, designage a few as bases.
+    - Mainland can be sometimes generated, no more than 2.
+    - Home bases for each faction are located as far away from each other as possible.
+    - To ease some things calculation wise, each map is designated into cells that are the smallest area
+    that the player can reference
+    - Each cell is... wait I lost my train of thought hold on
+
 - Language processing
     - Processing orders sent in by players
 
 
 
+
+
+Language design:
+
+Nouns -> select object
+    - "Fleet X"
+    - "Port X"
+    - Some nouns have a required/optional specifier, such as the fleet or port number
+Adjetives narrow searches
+    - "Enemy fleet X"
+    - There are always defaults
+Verbs perform actions with those selected nouns
+    - "Enemy fleet 3 attack"
+    - "Attack enemy fleet 3"
+Adverbs perhaps not as useful to parse
+
+When processing command string (and there's one per line btw):
+- Create state object. This is a branching object.
+- Encounter next word;
+    - find closets match
+    - if adjetive
+        - Filter by "tag"
+    - if noun
+        - selct the group pertaining to the noun. That group should
+        have a "tree" selection with nouns
+        - some nouns require qualifiers, like "fleet 4" or "base five"
+    - if AND
+        - run this again, but the context noun is preserved, although
+        it can change, "fleet 3 attack enemy fleet 2 and fleet 1"
+    - if newline is encountered, continue if the sentence logically hasn't ended,
+    ex: "fleet 4 report
+    surroundings"
+        - ACTUALLY, NO, all commands must be one line. For my sanity. For now.
+        Perhaps if I drink some coffee...
+
+
+
+
+
+Structures:
+
+client side:
+
+connection {
+    int socketfd;
+    char *ip;
+    char *port;
+    // Will never transmit more than this, ever, or "should not" (TM)
+    char buffer[1028];
+}
+
+map {
+    // Is null if no map
+    char *ascii;
+}
+
+state {
+    struct connection c;
+    // The map, if querieid from server
+    struct map map;
+    // The name that the player presents to the server and other players
+    char *playerName;
+}
+
+
+
+Server side:
+
+connection {
+    int socketfd;
+    char ip[16];
+    char port[8];
+    char buffer[1028];
+    bool valid;
+}
+
+typedef int shiptype;
+
+// Ship type defs
+#define SS 0
+#define DD 1
+#define CL 2
+#define BB 3
+#define CA 4
+#define TR 5
+// Aircraft
+// I know, it's a little weird classifying it as a ship
+// but it can interact with other ships, and whatever.
+// So yah.
+#define AI 6
+
+typedef int speedtype;
+
+// Speed defs
+#define STOP 0 
+#define SLOW 1
+#define NORMAL 2
+#define FAST 3
+#define FASTEST 4
+
+// Formation defs
+#define LINE 0
+#define DIAMOND 1
+#define 
+
+ship {
+    shiptype type;
+    double health;
+    int fleet;
+    char name[32];
+    double fuel;
+    // Note that cannot be replenished, which means
+    // that you should be careful with how many times you
+    // take a port
+    // Decreases ship stats the lower it is
+    int crew;
+}
+
+fleet {
+    // -1 will mark the end of the array
+    int ships[32];
+    char name[32];
+    double x;
+    double y;
+
+    // Target location, where it is going
+    double tx;
+    double ty;
+
+    // How fast
+    speedtype speed;
+    // False for radio silence
+    bool radio;
+    // Formation
+    int formation
+
+    // Only relevent if in a port
+    bool bombarding;
+}
+
+port {
+    double x;
+    double y;
+    char name[32];
+    // Index of player, or -1 for none
+    int owner;
+    // Land defense resistance, must be <= zero for capture.
+    double resistance;
+}
+
+player {
+    connection c;
+    // This can vary if ex. one player gets to start with more ships.
+    int numShips;
+    ship ships[16];
+}
+
+// Each node represents a different point of interest.
+typedef unsigned char nodetype;
+
+// Defs for map data
+#define OCEAN 0
+#define LAND 1
+#define PORT 2
+
+map {
+    nodetype *map;
+    int w;
+    int h;
+}
+
+state {
+    // Hard limit on the number of connections
+    player players[16];
+    map m;
+}
 
 
 

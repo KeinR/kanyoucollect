@@ -228,6 +228,17 @@ Server modules:
 
 - Language processing
     - Processing orders sent in by players
+    - Actions...
+        + int order_radioSilence(state, int value)
+        + int order_bombard(state, int value)
+        + int order_speed(state, int value)
+        + int order_formation(state, int value)
+        + int order_fleetName(state, int fleet, const char *name)
+        + int order_shipName(state, int ship, const char *name)
+        + int order_capture(state, int value)
+        + int order_lights(state, int value)
+        + int order_engage(state, int value)
+    - Notice how they are all the same type. Taking advange of this?
 
 
 
@@ -298,6 +309,11 @@ state {
 
 
 Server side:
+
+buffer {
+    int len;
+    unsigned char *data;
+}
 
 connection {
     int socketfd;
@@ -394,7 +410,18 @@ typedef unsigned char nodetype;
 // Defs for map data
 #define OCEAN 0
 #define LAND 1
-#define PORT 2
+// Multilbe defs for the port number
+#define PORT 2...17
+// Perhaps more accurate...
+// (if port 1 is indexed as zero)
+#define PORT(n) (n+1+LAND)
+// This allows for directly indexing the ports
+// from the map
+// Otherwise, the client would have no way
+// of knowing the names of the ports
+// (unless we also sent them that information
+// seperately in the form of coordinates, but that
+// is just annoying)
 
 map {
     nodetype *map;
@@ -405,6 +432,7 @@ map {
 state {
     // Hard limit on the number of connections
     player players[16];
+    port ports[16];
     map m;
 }
 

@@ -9,7 +9,6 @@ typedef struct {
     int socketfd;
     char *ip;
     char *port;
-    unsigned char buffer[KYKS_SOCKBUFFER_S];
 } kyks_connection;
 
 typedef struct {
@@ -56,8 +55,14 @@ typedef struct {
 } kyks_port;
 
 typedef struct {
+    int socketfd;
+    bool alive;
+} kyks_netcon;
+
+typedef struct {
     // The actual socket connection
-    kyks_connection c;
+    // used by the net module
+    kyks_netcon con;
     // The number of ships used in `ships`
     int numShips;
     kyks_ship ships[KYKS_SHIPS_S];
@@ -70,9 +75,14 @@ typedef struct {
 } kyks_map;
 
 typedef struct {
+    int socketfd;
+} kyks_net;
+
+typedef struct {
     kyks_player players[KYKS_PLAYERS_S];
     kyks_port ports[KYKS_PORTS_S];
     kyks_map m;
+    kyks_net net;
 } kyks_state;
 
 #endif

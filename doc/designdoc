@@ -195,23 +195,34 @@ Server modules:
         - Initialize the networking, start listening on port
         - will spawn a thread and start acceping connections, however will
         stay below maxConnections
-    + int listen(state)
-        - Start acceding connections
-    + int ignore(state)
-        - Ignore new connections
-    + int accept(state, int *id)
+        - Return nonzero on error:
+            q
+    + int close(state)
+        - Unbind port and stop listening. Terminates all port connections,
+        but that should be obvious
+    
+    + int accept(state, kyks_netconn *newcon)
         - Accepts a new connection
-        - id -> the internal id referencing the connection
-    + int alive(state, int id)
+        - newcon -> stores the new connection metainformation
+    + int alive(state, kyks_netconn *con)
         - Checks if the connection is still alive
-    + int disconnect(state, int id)
-        - Disconnect the given id
-    + int send(state, int id, const void *data, int dataSize)
+    + int disconnect(state, kyks_netconn *con)
+        - Disconnect the given connection
+    + int send(state, kyks_netconn *con, const void *data, int dataSize)
         - Send data to connection id
         - Return error
             - Invalid connection
             - Disconnected
 
+    --- discarded ---
+    Reason: this is always done, what's the point in
+    initializing the network if you don't start listening on a port?
+    + int listen(state
+        - Start acceding connections
+    Reason: There is no such "ignore" method with POSIX sockets unless
+    you close the socket itself, and that's a _no_.
+    + int ignore(state)
+        - Ignore new connections
 
 - Map generation
     - A pretty map is generated and written using stb_image that shows

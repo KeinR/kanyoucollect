@@ -237,6 +237,11 @@ Server modules:
     that the player can reference
     - Each cell is... wait I lost my train of thought hold on
 
+    // generate map
+    int genMap(map *m, ... assorted parameters ...)
+    // Free the map
+    void freeMap(map *m);
+
 - Language processing
     - Processing orders sent in by players
     - Actions...
